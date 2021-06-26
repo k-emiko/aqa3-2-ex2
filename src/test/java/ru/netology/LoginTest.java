@@ -1,6 +1,7 @@
 package ru.netology;
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import io.restassured.RestAssured;
 import io.restassured.builder.RequestSpecBuilder;
 import io.restassured.filter.log.LogDetail;
@@ -20,9 +21,11 @@ import ru.netology.data.Card;
 import ru.netology.data.Transfer;
 import ru.netology.data.UserGenerator;
 
+import java.lang.reflect.Type;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,15 +34,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class LoginTest {
 
-    private UserGenerator.User user = new UserGenerator.User("vasya", "qwerty123");
-    private UserGenerator.authInfo authCodeJson;
+    private final UserGenerator.User user = new UserGenerator.User("vasya", "qwerty123");
     String authCode;
     String token;
     List<Card> initialCards = new ArrayList<>();
     List<Card> actualCards = new ArrayList<>();
     String cardNumberAsterisks = "**** **** **** ";
     String cardNumberPrefix = "5559 0000 0000 ";
-    private RequestSpecification requestSpec = new RequestSpecBuilder()
+    private final RequestSpecification requestSpec = new RequestSpecBuilder()
             .setBaseUri("http://localhost")
             .setPort(9999)
             .setContentType(ContentType.JSON)
@@ -77,43 +79,41 @@ public class LoginTest {
 
     public void verification() {
         Gson gson = new Gson();
-        authCodeJson = new UserGenerator.authInfo(user.getLogin(), authCode);
+        UserGenerator.authInfo authCodeJson = new UserGenerator.authInfo(user.getLogin(), authCode);
         token = given()
-                    .spec(requestSpec)
-                    .body(gson.toJson((authCodeJson)))
+                .spec(requestSpec)
+                .body(gson.toJson((authCodeJson)))
                 .when()
-                    .post("/api/auth/verification")
+                .post("/api/auth/verification")
                 .then()
-                    .statusCode(200)
-                    .extract()
-                    .path("token");
+                .statusCode(200)
+                .extract()
+                .path("token");
         //System.out.println("token: " + token);
     }
 
     public List<Card> getCards() {
         List<Card> cards = new ArrayList<>();
-        Response response = given()
-                    .spec(requestSpec)
-                    .auth()
-                    .preemptive()
-                    .oauth2(token)
-                .when()
-                    .get("/api/cards")
-                .then()
-                    .extract()
-                    .response();
+        Gson gson = new Gson();
+        Response response =
+                given()
+                        .spec(requestSpec)
+                        .auth()
+                        .preemptive()
+                        .oauth2(token)
+                        .when()
+                        .get("/api/cards")
+                        .then()
+                        .extract()
+                        .response();
 
-        LinkedHashMap<String, String> card;
-        List<Card> lstmp = response.jsonPath().getList("$");
-        for (int i = 0; i < lstmp.size(); i++) {
-            card = response.path("[" + i + "]");
-            List cdtmp = Arrays.asList(card.values().toArray());
-            //System.out.println(cdtmp);
-            cards.add(new Card(
-                    String.valueOf(cdtmp.get(0)),
-                    String.valueOf(cdtmp.get(1)).replace(cardNumberAsterisks, ""),
-                    (Integer) cdtmp.get(2)));
-        }
+        Type listType = new TypeToken<List<Card>>() {
+        }.getType();
+        cards = gson.fromJson(response.path("$")
+                        .toString()
+                        .replace(cardNumberAsterisks, ""),
+                listType);
+
         //how to address: System.out.println(cards.get(0).getId());
         //System.out.println("cards: " + cards);
         return cards;
@@ -125,7 +125,7 @@ public class LoginTest {
                 cardNumberPrefix + initialCards.get(1).getNumber(),
                 amount);
 
-        int status = given()
+        return given()
                 .spec(requestSpec)
                 .auth()
                 .preemptive()
@@ -134,8 +134,8 @@ public class LoginTest {
                 .when()
                 .post("/api/transfer")
                 .then()
-                .extract().statusCode();
-        return status;
+                .extract()
+                .statusCode();
     }
 
     public int transferInvalidAccounts(String from, String to, Integer amount) {
@@ -144,7 +144,7 @@ public class LoginTest {
                 cardNumberPrefix + to,
                 amount);
 
-        int status = given()
+        return given()
                 .spec(requestSpec)
                 .auth()
                 .preemptive()
@@ -153,8 +153,8 @@ public class LoginTest {
                 .when()
                 .post("/api/transfer")
                 .then()
-                .extract().statusCode();
-        return status;
+                .extract()
+                .statusCode();
     }
 
     @BeforeAll
