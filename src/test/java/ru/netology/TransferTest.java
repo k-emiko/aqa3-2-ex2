@@ -112,35 +112,35 @@ public class TransferTest {
         expected = initialCards.get(0).getBalance() - amount;
         actual = actualCards.get(0).getBalance();
         assertEquals(expected, actual);
-        assertEquals(400, status);
+        assertEquals(200, status);
     }
 
     @Test
     public void transferOverdraft() {
         amount = 11000;
         status = transferValidAccounts(amount);
-        assertEquals(200, status);
+        assertEquals(400, status);
     }
 
     @Test
     public void transferNegative() {
         amount = -1000;
         status = transferValidAccounts(amount);
-        assertEquals(200, status);
+        assertEquals(400, status);
     }
 
     @Test
     public void transferFromInvalidAccount() {
         amount = 1000;
         status = transferInvalidAccounts("0", "0001", amount);
-        assertEquals(200, status);
+        assertEquals(400, status);
     }
 
     @Test
     public void transferToInvalidAccount() {
         amount = 1000;
         status = transferInvalidAccounts("0001", "0", amount);
-        assertEquals(200, status);
+        assertEquals(400, status);
     }
 
     public void login() {
