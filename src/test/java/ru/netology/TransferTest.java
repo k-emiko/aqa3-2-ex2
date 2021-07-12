@@ -12,16 +12,23 @@ import io.restassured.specification.RequestSpecification;
 import lombok.val;
 import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.handlers.ScalarHandler;
+import org.junit.Rule;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.testcontainers.containers.BindMode;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import ru.netology.data.Card;
 import ru.netology.data.Transfer;
 import ru.netology.data.UserGenerator;
 
 import java.lang.reflect.Type;
+import java.nio.file.Paths;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -32,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class LoginTest {
+public class TransferTest {
 
     private final UserGenerator.User user = new UserGenerator.User("vasya", "qwerty123");
     String authCode;
@@ -41,13 +48,100 @@ public class LoginTest {
     List<Card> actualCards = new ArrayList<>();
     String cardNumberAsterisks = "**** **** **** ";
     String cardNumberPrefix = "5559 0000 0000 ";
-    private final RequestSpecification requestSpec = new RequestSpecBuilder()
-            .setBaseUri("http://localhost")
-            .setPort(9999)
-            .setContentType(ContentType.JSON)
-            .setAccept(ContentType.JSON)
-            .log(LogDetail.ALL)
-            .build();
+    Integer amount;
+    int status;
+    Integer expected;
+    Integer actual;
+
+    private static String dbUrl;
+    static Network network = Network.newNetwork();
+
+    @Rule
+    public static MySQLContainer dbCont =
+            (MySQLContainer) new MySQLContainer("mysql:latest")
+                    .withDatabaseName("app")
+                    .withUsername("app")
+                    .withPassword("pass")
+                    .withNetwork(network)
+                    .withNetworkAliases("mysql")
+                    .withFileSystemBind("./artifacts/init/schema.sql", "/docker-entrypoint-initdb.d/schema.sql", BindMode.READ_ONLY)
+                    .withExposedPorts(3306);
+    @Rule
+    public static GenericContainer appCont =
+            new GenericContainer(new ImageFromDockerfile("app-deadline")
+                    .withDockerfile(Paths.get("artifacts/deadline/Dockerfile")))
+                    .withEnv("TESTCONTAINERS_DB_USER", "app")
+                    .withEnv("TESTCONTAINERS_DB_PASS", "pass")
+                    .withExposedPorts(9999)
+                    .withNetwork(network)
+                    .withNetworkAliases("app-deadline");
+
+    private static RequestSpecification requestSpec;
+
+    @BeforeAll
+    void setUpAll() throws SQLException {
+        dbCont.start();
+        dbUrl = dbCont.getJdbcUrl();
+        appCont
+                .withCommand("java -jar app-deadline.jar -P:jdbc.url=jdbc:mysql://mysql:3306/app")
+                .start();
+
+        requestSpec = new RequestSpecBuilder()
+                .setBaseUri("http://" + appCont.getHost())
+                .setPort(appCont.getMappedPort(9999))
+                .setContentType(ContentType.JSON)
+                .setAccept(ContentType.JSON)
+                .log(LogDetail.ALL)
+                .build();
+
+        login();
+        getAuthCode();
+        verification();
+    }
+
+    @BeforeEach
+    public void setUpEach() {
+        initialCards = getCards();
+    }
+
+    @Test
+    public void transferPositive() {
+        amount = 1000;
+        int status = transferValidAccounts(amount);
+        actualCards = getCards();
+        expected = initialCards.get(0).getBalance() - amount;
+        actual = actualCards.get(0).getBalance();
+        assertEquals(expected, actual);
+        assertEquals(200, status);
+    }
+
+    @Test
+    public void transferOverdraft() {
+        amount = 11000;
+        status = transferValidAccounts(amount);
+        assertEquals(400, status);
+    }
+
+    @Test
+    public void transferNegative() {
+        amount = -1000;
+        status = transferValidAccounts(amount);
+        assertEquals(400, status);
+    }
+
+    @Test
+    public void transferFromInvalidAccount() {
+        amount = 1000;
+        status = transferInvalidAccounts("0", "0001", amount);
+        assertEquals(400, status);
+    }
+
+    @Test
+    public void transferToInvalidAccount() {
+        amount = 1000;
+        status = transferInvalidAccounts("0001", "0", amount);
+        assertEquals(400, status);
+    }
 
     public void login() {
         Gson gson = new Gson();
@@ -68,13 +162,12 @@ public class LoginTest {
 
         try (
                 val conn = DriverManager.getConnection(
-                        "jdbc:mysql://localhost:3306/app", "app", "pass"
+                        dbUrl, "app", "pass"
                 )
         ) {
             String userId = runner.query(conn, idSQL, new ScalarHandler<>(), user.getLogin());
             authCode = runner.query(conn, dataSQL, new ScalarHandler<>(), userId);
         }
-        //System.out.println(authCode);
     }
 
     public void verification() {
@@ -89,11 +182,10 @@ public class LoginTest {
                 .statusCode(200)
                 .extract()
                 .path("token");
-        //System.out.println("token: " + token);
     }
 
     public List<Card> getCards() {
-        List<Card> cards = new ArrayList<>();
+        List<Card> cards;
         Gson gson = new Gson();
         Response response =
                 given()
@@ -113,37 +205,26 @@ public class LoginTest {
                         .toString()
                         .replace(cardNumberAsterisks, ""),
                 listType);
-
-        //how to address: System.out.println(cards.get(0).getId());
-        //System.out.println("cards: " + cards);
         return cards;
     }
 
     public int transferValidAccounts(Integer amount) {
-        Gson gson = new Gson();
-        Transfer transfer = new Transfer(cardNumberPrefix + initialCards.get(0).getNumber(),
+        Transfer transfer = new Transfer(
+                cardNumberPrefix + initialCards.get(0).getNumber(),
                 cardNumberPrefix + initialCards.get(1).getNumber(),
                 amount);
-
-        return given()
-                .spec(requestSpec)
-                .auth()
-                .preemptive()
-                .oauth2(token)
-                .body(gson.toJson(transfer))
-                .when()
-                .post("/api/transfer")
-                .then()
-                .extract()
-                .statusCode();
+        return transfer(transfer);
     }
 
     public int transferInvalidAccounts(String from, String to, Integer amount) {
-        Gson gson = new Gson();
         Transfer transfer = new Transfer(cardNumberPrefix + from,
                 cardNumberPrefix + to,
                 amount);
+        return transfer(transfer);
+    }
 
+    public int transfer(Transfer transfer) {
+        Gson gson = new Gson();
         return given()
                 .spec(requestSpec)
                 .auth()
@@ -155,57 +236,6 @@ public class LoginTest {
                 .then()
                 .extract()
                 .statusCode();
-    }
-
-    @BeforeAll
-    public void setUpAll() throws SQLException {
-        login();
-        getAuthCode();
-        verification();
-    }
-
-    @BeforeEach
-    public void setUpEach() {
-        initialCards = getCards();
-    }
-
-    @Test
-    public void transferPositive() {
-        Integer amount = 1000;
-        int status = transferValidAccounts(amount);
-        actualCards = getCards();
-        Integer expected = initialCards.get(0).getBalance() - amount;
-        Integer actual = actualCards.get(0).getBalance();
-        assertEquals(expected, actual);
-        assertEquals(200, status);
-    }
-
-    @Test
-    public void transferOverdraft() {
-        Integer amount = 11000;
-        int status = transferValidAccounts(amount);
-        assertEquals(400, status);
-    }
-
-    @Test
-    public void transferNegative() {
-        Integer amount = -1000;
-        int status = transferValidAccounts(amount);
-        assertEquals(400, status);
-    }
-
-    @Test
-    public void transferFromInvalidAccount() {
-        Integer amount = 1000;
-        int status = transferInvalidAccounts("0", "0001", amount);
-        assertEquals(400, status);
-    }
-
-    @Test
-    public void transferToInvalidAccount() {
-        Integer amount = 1000;
-        int status = transferInvalidAccounts("0001", "0", amount);
-        assertEquals(400, status);
     }
 
 }
