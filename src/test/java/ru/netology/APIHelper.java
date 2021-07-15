@@ -10,7 +10,7 @@ import io.restassured.parsing.Parser;
 import io.restassured.response.Response;
 import io.restassured.specification.RequestSpecification;
 import org.testcontainers.containers.GenericContainer;
-import ru.netology.data.Card;
+import ru.netology.data.CardGenerator;
 import ru.netology.data.Transfer;
 import ru.netology.data.UserGenerator;
 
@@ -63,8 +63,8 @@ public class APIHelper {
                     .path("token");
     }
 
-    public static List<Card> getCards() {
-        List<Card> cards;
+    public static List<CardGenerator.Card> getCards() {
+        List<CardGenerator.Card> cards;
         Gson gson = new Gson();
         Response response =
                 given()
@@ -78,7 +78,7 @@ public class APIHelper {
                     .extract()
                     .response();
 
-        Type listType = new TypeToken<List<Card>>() {
+        Type listType = new TypeToken<List<CardGenerator.Card>>() {
         }.getType();
         cards = gson.fromJson(response.path("$")
                         .toString()
@@ -87,7 +87,7 @@ public class APIHelper {
         return cards;
     }
 
-    public static int transferValidAccounts(List<Card> initialCards, Integer amount) {
+    public static int transferValidAccounts(List<CardGenerator.Card> initialCards, Integer amount) {
         Transfer transfer = new Transfer(
                 cardNumberPrefix + initialCards.get(0).getNumber(),
                 cardNumberPrefix + initialCards.get(1).getNumber(),

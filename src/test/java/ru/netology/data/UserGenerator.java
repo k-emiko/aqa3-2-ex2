@@ -7,7 +7,7 @@ import lombok.Value;
 @Data
 public class UserGenerator {
 
-    public static User generateUser() {
+    public static User generate() {
         return new UserGenerator.User("vasya", "qwerty123");
     }
 

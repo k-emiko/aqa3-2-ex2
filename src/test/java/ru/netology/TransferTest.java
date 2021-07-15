@@ -13,7 +13,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import ru.netology.data.Card;
+import ru.netology.data.CardGenerator;
 import ru.netology.data.UserGenerator;
 
 import java.nio.file.Paths;
@@ -30,9 +30,9 @@ import static ru.netology.DBHelper.getAuthCode;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TransferTest {
 
-    private final UserGenerator.User user = UserGenerator.generateUser();
-    List<Card> initialCards = new ArrayList<>();
-    List<Card> actualCards = new ArrayList<>();
+    private final UserGenerator.User user = UserGenerator.generate();
+    List<CardGenerator.Card> initialCards = new ArrayList<>();
+    List<CardGenerator.Card> actualCards = new ArrayList<>();
     Integer amount;
     int status;
     Integer expected;
@@ -105,8 +105,8 @@ public class TransferTest {
 
     @ParameterizedTest(name = "{arguments}")
     @CsvFileSource(resources = "/NegativeTransferTestInvalidAccounts.csv", delimiter = '|', numLinesToSkip = 1)
-    public void negativeTestInvalidAccounts (String test, Integer amount, String from, String to) {
-        status = APIHelper.transferInvalidAccounts(amount, to, from);
+    public void negativeTestInvalidAccounts (String test, Integer amount) {
+        status = APIHelper.transferInvalidAccounts(amount, CardGenerator.generateInvalidNumber(), CardGenerator.generateInvalidNumber());
         expected = initialCards.get(0).getBalance();
         actualCards = getCards();
         actual = actualCards.get(0).getBalance();
