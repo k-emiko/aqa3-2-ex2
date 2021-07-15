@@ -1,10 +1,7 @@
 package ru.netology;
 
 import org.junit.Rule;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 import org.testcontainers.containers.BindMode;
@@ -103,16 +100,39 @@ public class TransferTest {
                 () -> assertEquals(expected, actual));
     }
 
-    @ParameterizedTest(name = "{arguments}")
-    @CsvFileSource(resources = "/NegativeTransferTestInvalidAccounts.csv", delimiter = '|', numLinesToSkip = 1)
-    public void negativeTestInvalidAccounts (String test, Integer amount) {
-        status = APIHelper.transferInvalidAccounts(amount, CardGenerator.generateInvalidNumber(), CardGenerator.generateInvalidNumber());
-        expected = initialCards.get(0).getBalance();
+    @Test @DisplayName("From invalid account")
+    public void negativeTestFromInvalid () {
+        amount = 1000;
+        status = APIHelper.transferInvalidAccounts(amount, initialCards.get(1).getNumber(), CardGenerator.generateInvalidNumber());
+        expected = initialCards.get(1).getBalance();
         actualCards = getCards();
-        actual = actualCards.get(0).getBalance();
+        actual = actualCards.get(1).getBalance();
         assertAll(
                 () -> assertEquals(400, status),
                 () -> assertEquals(expected, actual));
     }
 
+    @Test @DisplayName("To invalid account")
+    public void negativeTestToInvalid () {
+        amount = 1000;
+        status = APIHelper.transferInvalidAccounts(amount, CardGenerator.generateInvalidNumber(), initialCards.get(1).getNumber());
+        expected = initialCards.get(1).getBalance();
+        actualCards = getCards();
+        actual = actualCards.get(1).getBalance();
+        assertAll(
+                () -> assertEquals(400, status),
+                () -> assertEquals(expected, actual));
+    }
+
+    @Test @DisplayName("Incorrect number format")
+    public void negative17DigitNumber () {
+        amount = 1000;
+        status = APIHelper.transferInvalidAccounts(amount, CardGenerator.generate17DigitNumber(), initialCards.get(1).getNumber());
+        expected = initialCards.get(1).getBalance();
+        actualCards = getCards();
+        actual = actualCards.get(1).getBalance();
+        assertAll(
+                () -> assertEquals(400, status),
+                () -> assertEquals(expected, actual));
+    }
 }
