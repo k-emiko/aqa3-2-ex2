@@ -8,7 +8,7 @@ import lombok.Value;
 @AllArgsConstructor
 @Getter
 public class Card {
-    private String id;
-    private String number;
-    private Integer balance;
+    String id;
+    String number;
+    Integer balance;
 }
