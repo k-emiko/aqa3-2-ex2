@@ -10,18 +10,18 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import ru.netology.api.APIHelper;
 import ru.netology.data.CardGenerator;
 import ru.netology.data.UserGenerator;
 
 import java.nio.file.Paths;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static ru.netology.APIHelper.getCards;
-import static ru.netology.DBHelper.getAuthCode;
+import static ru.netology.api.APIHelper.getCards;
+import static ru.netology.database.DBHelper.getAuthCode;
 
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -46,7 +46,7 @@ public class TransferTest {
                     .withDockerfile(Paths.get("artifacts/deadline/Dockerfile")));
 
     @BeforeAll
-    void setUpContainersAndAPI() throws SQLException {
+    void setUpContainersAndAPI() {
         dbCont
                 .withDatabaseName("app")
                 .withUsername("app")

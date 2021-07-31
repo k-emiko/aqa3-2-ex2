@@ -1,4 +1,4 @@
-package ru.netology;
+package ru.netology.database;
 
 import lombok.val;
 import org.apache.commons.dbutils.QueryRunner;
@@ -10,12 +10,12 @@ import java.sql.SQLException;
 
 public class DBHelper {
 
-    public static String getAuthCode(UserGenerator.User user, String dbUrl) throws SQLException {
+    public static String getAuthCode(UserGenerator.User user, String dbUrl) {
         val runner = new QueryRunner();
         val idSQL = "SELECT id FROM users WHERE login=?;";
         val dataSQL = "SELECT code FROM auth_codes WHERE user_id=? AND created=(select max(created) from auth_codes)";
 
-        String authCode;
+        String authCode = null;
         try (
                 val conn = DriverManager.getConnection(
                         dbUrl, "app", "pass"
@@ -23,6 +23,8 @@ public class DBHelper {
         ) {
             String userId = runner.query(conn, idSQL, new ScalarHandler<>(), user.getLogin());
             authCode = runner.query(conn, dataSQL, new ScalarHandler<>(), userId);
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     return authCode;
     }

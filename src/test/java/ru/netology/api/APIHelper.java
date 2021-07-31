@@ -1,4 +1,4 @@
-package ru.netology;
+package ru.netology.api;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
